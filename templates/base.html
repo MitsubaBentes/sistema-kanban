@@ -5,11 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kanban Diário – Expedição</title>
 
-  <!-- ===== FONTE & ÍCONES ===== -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 
-  <!-- ===== TAILWIND ===== -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -37,10 +35,8 @@
     };
   </script>
 
-  <!-- ===== SheetJS: Leitura Excel ===== -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-nyBfez3xGfJ2txF7Pqz0o1P9d5JBgXESwXAgQp4TXPTvgzy+xkIQx2B9uX1vQe84wnZV4xscDd3V85N1kUUDqg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="{{ url_for('static', filename='js/xlsx.full.min.js') }}"></script>
 
-  <!-- ===== ESTILOS EXTRAS ===== -->
   <style>
     /* ---------- Fundo degradê + partículas ---------- */
     body {
@@ -133,28 +129,21 @@
 </head>
 
 <body>
-  <!-- === Partículas === -->
   <div class="particles" id="particles"></div>
 
-  <!-- === Cabeçalho === -->
   <header class="main-header fade-in-up">
-    <!-- grid garante o título centralizado -->
     <div class="grid grid-cols-3 items-center max-w-7xl mx-auto gap-4">
-      <!-- Logo -->
       <div class="flex items-center">
         <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo da Empresa" class="h-12 w-auto" />
       </div>
 
-      <!-- Título -->
       <h1 class="col-span-1 text-center text-primary-dark text-3xl md:text-3xl font-bold whitespace-nowrap">
         KANBAN DIÁRIO EXPEDIÇÃO
       </h1>
 
-      <!-- Data/Hora -->
       <div class="flex justify-end">
         <div class="date-display">
           <i class="ri-calendar-line date-icon"></i>
-          <!-- centralização vertical e horizontal do bloco de texto -->
           <div class="flex flex-col items-center text-center">
             <span id="currentDate" class="text-sm font-bold"></span>
             <span id="currentTime" class="text-xs opacity-90"></span>
@@ -164,12 +153,10 @@
     </div>
   </header>
 
-  <!-- === Conteúdo === -->
   <main class="relative z-10 px-4 md:px-6 py-6">
     {% block content %}{% endblock %}
   </main>
 
-  <!-- ===== SCRIPTS ===== -->
   <script>
     /* ------------ Partículas BG ------------ */
     const particles = document.getElementById('particles');
@@ -194,9 +181,6 @@
     setInterval(updateDateTime, 1000);
   </script>
 
-  <!-- ===================================================================== -->
-
-<!-- === Legenda Kanban — sem fundo ====================================== -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const target = [...document.querySelectorAll('h1,h2,h3,h4,h5')]
@@ -247,9 +231,6 @@
       target.replaceWith(wrapper);
     });
   </script>
-  <!-- ===================================================================== -->
-
-<!-- === Botões Kanban — gradiente branco ================================= -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const targets = [
@@ -283,7 +264,5 @@
       });
     });
   </script>
-  <!-- ===================================================================== -->
-
-</body>
+  </body>
 </html>
