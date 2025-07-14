@@ -1,7 +1,22 @@
 [project]
-name = "python-template"
+name = "sistema-expedicao"
 version = "0.1.0"
-description = ""
-authors = ["Your Name <you@example.com>"]
-requires-python = ">=3.11"
-dependencies = []
+description = "Sistema Kanban de Expedição com importação de planilhas, dashboard e leitura via QR Code"
+authors = [{ name = "Bruno Bentes" }]
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+
+dependencies = [
+    "Flask==3.0.3",
+    "gunicorn==22.0.0",
+    "pandas==2.3",
+    "openpyxl==3.1.2",
+    "pyxlsb==1.0.10"
+]
+
+[project.urls]
+"GitHub" = "https://github.com/MitsubaBentes/sistema-expedicao"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

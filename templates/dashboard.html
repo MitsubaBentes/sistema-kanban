@@ -1,0 +1,557 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="max-w-7xl mx-auto py-2">
+  <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-lg text-gray-700 font-medium rounded-xl shadow-lg hover:bg-white hover:shadow-xl transition mb-4">
+    <i class="ri-arrow-left-line text-lg"></i>
+    Voltar à Base
+  </a>
+
+  <h1 class="text-3xl font-bold text-white mb-6 flex items-center gap-3">
+    <i class="ri-dashboard-2-line"></i>
+    Dashboard Kanban de Expedição
+  </h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div class="bg-white/90 backdrop-blur-lg rounded-xl shadow-lg p-6">
+      <h2 class="text-lg font-semibold text-gray-700 mb-2">Total Planejado</h2>
+      <div class="text-3xl font-bold text-gray-800" id="totalPlanejado">0</div>
+    </div>
+    <div class="bg-white/90 backdrop-blur-lg rounded-xl shadow-lg p-6">
+      <h2 class="text-lg font-semibold text-gray-700 mb-2">Total Expedido</h2>
+      <div class="text-3xl font-bold text-gray-800" id="totalExpedido">0</div>
+    </div>
+    <div class="bg-white/90 backdrop-blur-lg rounded-xl shadow-lg p-6">
+      <h2 class="text-lg font-semibold text-gray-700 mb-2">Conclusão</h2>
+      <div class="text-3xl font-bold text-gray-800" id="percentualTotal">0%</div>
+      <div class="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white/90 backdrop-blur-lg rounded-xl shadow-lg p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-700 mb-4">Top 5 Itens Expedidos</h2>
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4" id="topItensContainer">
+      </div>
+  </div>
+
+  <div class="bg-white/90 backdrop-blur-lg rounded-xl shadow-2xl p-6 mb-6">
+    <div class="relative" style="height: 700px;">
+      <canvas id="graficoCodigosChart"></canvas>
+    </div>
+  </div>
+
+  <div class="bg-white/90 backdrop-blur-lg rounded-xl shadow-lg p-6">
+    <h2 class="text-lg font-semibold text-gray-700 mb-4">Últimas Saídas Registradas (Hoje)</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th>
+          </tr>
+        </thead>
+        <tbody id="ultimasSaidasBody" class="bg-white divide-y divide-gray-200">
+          </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let graficoCodigosChart = null;
+
+// Mapa fixo de descrições fornecidas pelo usuário - Mover para o escopo global
+const mapaDescricoesFixas = {
+  "16700K1S 9011 M1": "BOMBA K1SG",
+  "16700K68 9013 M1": "BOMBA K68",
+  "16700K68 B011 M1": "BOMBA K68L",
+  "16700K62 BC10 M1": "BOMBA K62",
+  "16700K1H B511 M1": "BOMBA K1HG_E100",
+  "16700K1H B611 M1": "BOMBA K1HG_E22",
+  "16700KVS J016 M1": "BOMBA KVSP",
+  "16700K2K B030 M1": "BOMBA K2K",
+  "16700K3H B011 M1": "BOMBA K3H",
+  "16700K99 A011 M1": "BOMBA K99",
+  "16700K3W A010 M1": "BOMBA K3W",
+  "16700K1Z B310 M1": "BOMBA K1ZR",
+  "16700K2G 9111 M1": "BOMBA K2GF E100",
+  "16700K2G 9010 M1": "BOMBA K2GF E22",
+  "31120KVS K010 M1": "ESTATOR KVST",
+  "31120K68 9010 M1": "ESTATOR K68",
+  "31120K1S 9011 M1": "ESTATOR K1SG",
+  "31300K0W NA11 M1": "GERADOR K0W",
+  "31300K1Z T110 M1": "GERADOR K1Z",
+  "31300K1Z N410 M1": "GERADOR K1ZR",
+  "31300K1J DB11 M1": "GERADOR K1J",
+  "3120AK1S 9000": "MOTOR K1SG",
+  "3120AKVS J003": "MOTOR KVSP",
+  "3120AKVS K002": "MOTOR KVST",
+  "3120AK68 7001": "MOTOR K68A",
+  "3120AK68 B000": "MOTOR K68L",
+  "3120AKPE 9003": "MOTOR KPE",
+  "3120AK2K B002": "MOTOR K2K",
+  "3120AK99 A001": "MOTOR K99",
+  "3120AK3H B000": "MOTOR K3H",
+  "3120AK3W B002": "MOTOR K3W",
+  "3120AKVS K003": "MOTOR KVST",
+  "3120AK68 7002": "MOTOR K68A",
+  "31110KRE H810 M1": "ROTOR KREV"
+};
+
+async function loadTopItensExpedidos() {
+  try {
+    const response = await fetch('/api/grafico-codigos');
+    const data = await response.json();
+
+    // Buscar descrições da API como fallback para o Top 5
+    const saidasDetResponse = await fetch('/api/saidas-registradas-detailed');
+    const saidasDetalhadas = await saidasDetResponse.json();
+    
+    // Criar mapa de código para descrição usando os dados das saídas detalhadas (fallback)
+    const mapaDescricoesAPI = {};
+    saidasDetalhadas.forEach(saida => {
+      const codigo = saida.CODIGO || saida.codigo;
+      const descricao = saida.DESCRICAO || saida.descricao;
+      if (codigo && descricao) {
+        mapaDescricoesAPI[codigo] = descricao;
+      }
+    });
+
+    // Filtrar itens expedidos e ordenar do maior para o menor
+    const itensOrdenados = data
+      .filter(item => item.total_enviado > 0)
+      .sort((a, b) => b.total_enviado - a.total_enviado);
+
+    const container = document.getElementById('topItensContainer');
+    container.innerHTML = '';
+
+    // Informações de medalhas por posição
+    const medalInfo = [
+      { icon: 'ri-medal-2-fill', color: 'text-yellow-500' }, // 1º ouro
+      { icon: 'ri-medal-2-fill', color: 'text-gray-300' },  // 2º prata
+      { icon: 'ri-medal-2-fill', color: 'text-amber-700' }, // 3º bronze
+      { icon: 'ri-medal-line',  color: 'text-blue-500' },   // 4º
+      { icon: 'ri-medal-line',  color: 'text-blue-400' }    // 5º
+    ];
+
+    // Garante sempre 5 cards (preenchidos ou placeholder)
+    for (let i = 0; i < 5; i++) {
+      const item = itensOrdenados[i];
+      const medal = medalInfo[i] || { icon: 'ri-medal-line', color: 'text-gray-400' };
+      const posicao = i + 1;
+
+      const div = document.createElement('div');
+      div.className = item
+        ? 'bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg p-4 border border-blue-200'
+        : 'bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200';
+
+      if (item) {
+        const percentual = item.total_planejado > 0
+          ? ((item.total_enviado / item.total_planejado) * 100).toFixed(1)
+          : 0;
+
+        const codigo = item.codigo || item.CODIGO;
+        let descricaoParaExibir = 'Item sem descrição';
+
+        // PRIORIDADE 1: Usar descrição fixa fornecida pelo usuário
+        if (mapaDescricoesFixas[codigo]) {
+            descricaoParaExibir = mapaDescricoesFixas[codigo];
+        } 
+        // PRIORIDADE 2: Buscar na API das saídas detalhadas
+        else if (mapaDescricoesAPI[codigo]) {
+            descricaoParaExibir = mapaDescricoesAPI[codigo];
+        } 
+        // PRIORIDADE 3: Tentar pegar do próprio item do gráfico
+        else if (item.descricao) {
+            descricaoParaExibir = item.descricao;
+        }
+        // PRIORIDADE 4: Fallback para código
+        else { 
+            descricaoParaExibir = codigo;
+        }
+
+        div.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <span class="flex items-center gap-1 font-bold ${medal.color}">
+              <i class="${medal.icon} text-xl"></i>
+              <span>${posicao}</span>
+            </span>
+            <span class="text-sm text-gray-600">${percentual}%</span>
+          </div>
+          <div class="font-semibold text-gray-800 mb-1">${descricaoParaExibir}</div> 
+          <div class="text-2xl font-bold text-blue-700">${item.total_enviado.toLocaleString('pt-BR')}</div>
+          <div class="text-xs text-gray-500">de ${item.total_planejado.toLocaleString('pt-BR')}</div>
+        `;
+      } else {
+        div.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <span class="flex items-center gap-1 font-bold ${medal.color}">
+              <i class="${medal.icon} text-xl"></i>
+              <span>${posicao}</span>
+            </span>
+            <span class="text-sm text-gray-400">--%</span>
+          </div>
+          <div class="font-semibold text-gray-400 mb-1">---</div>
+          <div class="text-2xl font-bold text-gray-300">0</div>
+          <div class="text-xs text-gray-300">de 0</div>
+        `;
+      }
+      container.appendChild(div);
+    }
+  } catch (error) {
+    console.error('Erro ao carregar top itens:', error);
+  }
+}
+
+async function loadGraficoCodigosData() {
+  try {
+    const response = await fetch('/api/grafico-codigos');
+    const data = await response.json();
+    
+    if (data.length === 0) {
+      return;
+    }
+
+    // Buscar descrições da API como fallback
+    const saidasDetResponse = await fetch('/api/saidas-registradas-detailed');
+    const saidasDetalhadas = await saidasDetResponse.json();
+    
+    // Criar mapa de código para descrição usando os dados das saídas detalhadas (fallback)
+    const mapaDescricoesAPI = {};
+    saidasDetalhadas.forEach(saida => {
+      const codigo = saida.CODIGO || saida.codigo;
+      const descricao = saida.DESCRICAO || saida.descricao;
+      if (codigo && descricao) {
+        mapaDescricoesAPI[codigo] = descricao;
+      }
+    });
+
+    // Filtrar apenas itens que possuem valor (planejado ou enviado > 0)
+    const itensComValor = data.filter(item => 
+      (item.total_planejado > 0) || (item.total_enviado > 0) || (item.pendente > 0)
+    );
+    
+    // Usar descrição fixa fornecida pelo usuário
+    const labels = itensComValor.map(item => {
+      const codigo = item.codigo || item.CODIGO;
+      
+      // PRIORIDADE 1: Usar descrição fixa fornecida pelo usuário
+      if (mapaDescricoesFixas[codigo]) {
+        return mapaDescricoesFixas[codigo];
+      }
+      
+      // PRIORIDADE 2: Buscar na API das saídas detalhadas
+      if (mapaDescricoesAPI[codigo]) {
+        return mapaDescricoesAPI[codigo];
+      }
+      
+      // PRIORIDADE 3: Tentar pegar do próprio item do gráfico
+      let descricao = item.descricao || item.DESCRICAO;
+      if (descricao) {
+        return descricao;
+      }
+      
+      // PRIORIDADE 4: Fallback para código
+      return codigo || 'Item sem descrição';
+    });
+    
+    const pendentes = itensComValor.map(item => item.pendente);
+    const enviados = itensComValor.map(item => item.total_enviado);
+
+    const ctx = document.getElementById('graficoCodigosChart').getContext('2d');
+    
+    // Destruir gráfico anterior se existir
+    if (graficoCodigosChart) {
+      graficoCodigosChart.destroy();
+    }
+
+    // Plugin para exibir % de atendimento e quantidades nas barras
+    const dataLabelsPlugin = {
+      id: 'dataLabelsPlugin',
+      afterDatasetsDraw(chart, args, options) {
+        const {ctx, scales: {x, y}} = chart;
+        ctx.save();
+
+        const pendDataset = chart.getDatasetMeta(0); // Pendente (amarelo)
+        const envDataset = chart.getDatasetMeta(1);  // Enviado (verde)
+
+        pendDataset.data.forEach((barPend, index) => {
+          const valorPendente = chart.data.datasets[0].data[index];
+          const valorEnviado = chart.data.datasets[1].data[index];
+          const total = valorPendente + valorEnviado;
+          // Ajustado para toFixed(0) para remover casas decimais
+          const percentualAtendimento = total > 0 ? ((valorEnviado / total) * 100).toFixed(0) : '0';
+
+          // --- Exibir Quantidade Enviado (dentro da barra verde) ---
+          if (valorEnviado > 0) {
+            const barEnv = envDataset.data[index];
+            const textEnviado = valorEnviado.toLocaleString('pt-BR');
+            ctx.fillStyle = '#ffffff'; // Cor branca para texto dentro da barra verde
+            ctx.font = 'bold 14px sans-serif'; // Mantido 14px e negrito
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Posiciona o texto no meio da barra verde, ajustando para centralizar
+            ctx.fillText(textEnviado, barEnv.x, barEnv.y + barEnv.height / 2);
+          }
+
+          // --- Exibir Quantidade Pendente (dentro da barra amarela) ---
+          if (valorPendente > 0) {
+            const textPendente = valorPendente.toLocaleString('pt-BR');
+            ctx.fillStyle = '#000000'; // Cor alterada para preto (#000000) - igual ao % de atendimento
+            ctx.font = 'bold 14px sans-serif'; // Mantido 14px e negrito
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Posiciona o texto no meio da barra amarela
+            ctx.fillText(textPendente, barPend.x, barPend.y + barPend.height / 2);
+          }
+
+          // --- Exibir Porcentagem de Atendimento (acima do topo da barra Enviado/base do Pendente) ---
+          if (total > 0 && valorEnviado >= 0) { // Garante que a porcentagem só apareça para itens com valores
+            const barEnv = envDataset.data[index];
+            const x = barEnv.x;
+            // Posição Y no topo da barra "Enviado" (base da "Pendente")
+            const y = barEnv.y; 
+
+            const textPct = percentualAtendimento + '%';
+            const rectWidth = barEnv.width; // Largura do retângulo é a largura da barra
+            const rectHeight = 18; // Altura do retângulo
+
+            // Desenhar retângulo branco abaixo do texto para maior contraste
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; // Fundo branco semi-transparente ligeiramente mais opaco
+            ctx.fillRect(x - rectWidth / 2, y - rectHeight / 2 - 5, rectWidth, rectHeight + 5); // Ajuste vertical
+
+            ctx.fillStyle = '#000000'; // Cor do texto da porcentagem (preto)
+            ctx.font = 'bold 14px sans-serif'; // Ajustei para 14px e negrito, igual aos outros
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom'; // Ajusta a linha de base para o texto ficar sobre o retângulo
+            ctx.fillText(textPct, x, y - 5); // 5px acima do topo da barra verde/base amarela
+          }
+        });
+        ctx.restore();
+      }
+    };
+
+    // Criar gradientes
+    const gradient1 = ctx.createLinearGradient(0, 0, 0, 600);
+    gradient1.addColorStop(0, '#FCD34D'); // Amarelo claro
+    gradient1.addColorStop(1, '#F59E0B'); // Amarelo escuro
+
+    const gradient2 = ctx.createLinearGradient(0, 0, 0, 600);
+    gradient2.addColorStop(0, '#6EE7B7'); // Verde claro
+    gradient2.addColorStop(1, '#10B981'); // Verde escuro
+
+    graficoCodigosChart = new Chart(ctx, {
+      plugins: [dataLabelsPlugin], // Usamos o novo plugin
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Pendente',
+            data: pendentes,
+            backgroundColor: gradient1,
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderRadius: 4,
+            barThickness: 50, // Definido para 50 pixels
+            borderSkipped: false
+          },
+          {
+            label: 'Enviado',
+            data: enviados,
+            backgroundColor: gradient2,
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderRadius: 4,
+            barThickness: 50, // Definido para 50 pixels
+            borderSkipped: false
+          },
+          // O dataset de % de atendimento não precisa mais de um array de dados,
+          // pois a renderização é feita via plugin. Mantido para a legenda.
+          {
+            label: '% de atendimento',
+            data: [], // Não renderiza barras, apenas para a legenda
+            backgroundColor: '#ffffff', // Cor da "amostra" na legenda
+            borderColor: '#000000',
+            borderWidth: 1,
+            borderRadius: 4,
+            hidden: false // Garante que apareça na legenda
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              font: {
+                size: 14,
+                weight: 'bold'
+              },
+              padding: 20,
+              color: '#000000' // Cor da legenda alterada para preto
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleColor: 'white',
+            bodyColor: 'white',
+            borderColor: 'rgba(255,255,255,0.2)',
+            borderWidth: 1,
+            cornerRadius: 8,
+            displayColors: true,
+            callbacks: {
+              beforeBody: function(tooltipItems) {
+                const chart = tooltipItems[0].chart;
+                const idx = tooltipItems[0].dataIndex;
+                const pend = chart.data.datasets[0].data[idx] || 0;
+                const env  = chart.data.datasets[1].data[idx] || 0;
+                const total = pend + env;
+                return ['Pedido Total: ' + total.toLocaleString('pt-BR')];
+              },
+              label: function(context) {
+                const label = context.dataset.label || '';
+                const chart = context.chart;
+                const dataIndex = context.dataIndex;
+
+                if (label === '% de atendimento') {
+                  // Calcular a partir dos outros dois datasets
+                  const pend = chart.data.datasets[0].data[dataIndex] || 0;
+                  const env  = chart.data.datasets[1].data[dataIndex] || 0;
+                  const total = pend + env;
+                  // Ajustado para toFixed(0) no tooltip também
+                  const pct = total ? ((env / total) * 100).toFixed(0) : 0; 
+                  return '% de atendimento: ' + pct + '%';
+                }
+
+                // Para Pendente e Enviado, formata valor numérico
+                const value = context.raw ?? context.parsed.y ?? context.parsed;
+                return label + ': ' + Number(value).toLocaleString('pt-BR');
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            grid: {
+              display: false
+            },
+            border: {
+              display: false
+            },
+            ticks: {
+              font: {
+                weight: 'bold',
+                size: 12 // Fonte aumentada para 12px
+              },
+              maxRotation: 45,
+              minRotation: 45,
+              color: '#000000', // Cor alterada para preto
+              // Ajustar callback para mostrar descrições truncadas se muito longas
+              callback: function(value, index, values) {
+                const label = this.getLabelForValue(value);
+                // Truncar labels muito longos para melhor visualização
+                return label.length > 30 ? label.substring(0, 27) + '...' : label;
+              }
+            },
+            // barPercentage e categoryPercentage são removidos quando barThickness é usado
+          },
+          y: {
+            stacked: true,
+            display: false, // Ocultar o eixo Y padrão
+            grid: {
+              display: false
+            },
+            border: {
+              display: false
+            }
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
+        elements: {
+          bar: {
+            borderRadius: 4
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao carregar dados do gráfico:', error);
+  }
+}
+
+async function loadDashboardData() {
+  // Planejamento
+  const dados = await (await fetch('/api/dados')).json();
+  const totalPlanejado = dados.reduce((sum, item) => sum + (item.TOTAL || item.total || 0), 0);
+  document.getElementById('totalPlanejado').textContent = totalPlanejado.toLocaleString('pt-BR');
+
+  // Saídas registradas (resumidas) – quantidade total
+  const saidasResumidas = await (await fetch('/api/saidas-registradas')).json();
+  const totalExpedido = Object.values(saidasResumidas).reduce((tot, horarios) =>
+    tot + Object.values(horarios).reduce((s, q) => s + q, 0), 0);
+  document.getElementById('totalExpedido').textContent = totalExpedido.toLocaleString('pt-BR');
+
+  // Percentual total
+  // Ajustado para toFixed(0) para remover casas decimais
+  const pctTotal = totalPlanejado ? ((totalExpedido / totalPlanejado) * 100).toFixed(0) : 0; 
+  document.getElementById('percentualTotal').textContent = pctTotal + '%';
+  document.getElementById('progressBar').style.width = pctTotal + '%';
+
+  // Saídas detalhadas (para tabela)
+  const saidasDet = await (await fetch('/api/saidas-registradas-detailed')).json();
+  const hoje = new Date().toISOString().split('T')[0];
+  const saidasHoje = saidasDet.filter(s => s.data_saida && s.data_saida.startsWith(hoje));
+
+  const codKey = Object.keys(dados[0] || {}).find(k => k.toLowerCase().includes('codigo')) || 'CODIGO';
+  const descKey = Object.keys(dados[0] || {}).find(k => k.toLowerCase().includes('descricao')) || 'DESCRICAO';
+
+  buildUltimasSaidas(saidasHoje, codKey, descKey);
+  
+  // Carregar dados do gráfico e top itens
+  await loadGraficoCodigosData();
+  await loadTopItensExpedidos();
+}
+
+function buildUltimasSaidas(data, codKey = 'codigo', descKey = 'descricao') {
+  const tbody = document.getElementById('ultimasSaidasBody');
+  tbody.innerHTML = '';
+
+  const sorted = data.sort((a, b) => new Date(b.data_saida) - new Date(a.data_saida));
+  if (sorted.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">
+      <i class="ri-inbox-line text-3xl mb-2 block mx-auto"></i>Nenhuma saída registrada hoje
+    </td></tr>`;
+    return;
+  }
+
+  sorted.slice(0, 10).forEach(saida => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-50';
+    const hora = saida.horario || (saida.data_saida ? new Date(saida.data_saida).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '');
+    tr.innerHTML = `
+      <td class="px-6 py-4 whitespace-nowrap">${saida[codKey] || saida.codigo || ''}</td>
+      <td class="px-6 py-4 whitespace-nowrap">${saida[descKey] || saida.descricao || ''}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${(saida.quantidade_lida || saida.quantidade || 0).toLocaleString('pt-BR')}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-center">${hora}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboardData);
+setInterval(loadDashboardData, 30000);
+</script>
+{% endblock %}

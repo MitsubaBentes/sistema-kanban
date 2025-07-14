@@ -1,0 +1,1214 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="fixed top-0 left-0 right-0 z-50 p-4">
+      {% for category, message in messages %}
+        <div class="p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-yellow-100 text-yellow-800{% endif %} fade-in-up">
+          <i class="{% if category == 'success' %}ri-check-line{% elif category == 'danger' %}ri-error-warning-line{% else %}ri-information-line{% endif %} mr-2"></i>
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<div class="flex flex-wrap gap-4 justify-center mb-4 fade-in-up">
+  <a href="/import" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-br from-blue-600 to-blue-700 hover:scale-105 active:scale-100 transition shadow-lg">
+    <i class="ri-upload-cloud-line text-lg"></i>
+    IMPORTAR KANBAN
+  </a>
+
+
+
+  <a href="/dashboard" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-br from-blue-600 to-blue-700 hover:scale-105 active:scale-100 transition shadow-lg">
+    <i class="ri-bar-chart-box-line text-lg"></i>
+    DASHBOARD
+  </a>
+  <button onclick="openSaidaModal()" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-br from-blue-600 to-blue-700 hover:scale-105 active:scale-100 transition shadow-lg">
+    <i class="ri-truck-line text-lg"></i>
+    SAÍDA KANBAN
+  </button>
+  
+
+</div>
+
+<div id="statusContainer" class="mb-4 fade-in-up hidden">
+  <div class="bg-blue-100 border border-blue-200 rounded-lg p-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i class="ri-information-line text-blue-600"></i>
+        <span id="statusText" class="text-blue-800 font-medium">Carregando dados...</span>
+      </div>
+      <div id="recordCount" class="text-sm text-blue-600"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-white/90 backdrop-blur-lg border border-white/30 rounded-2xl shadow-2xl fade-in-up table-container">
+  <div class="p-4 border-b border-gray-200">
+    <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+      <i class="ri-table-line text-blue-600"></i>
+      Tabela Kanban - Quantidades por Horário
+    </h2>
+  </div>
+
+  <div class="overflow-auto max-h-[calc(100vh-300px)]">
+    <table id="kanbanTable" class="kanban-table w-full text-left text-gray-700">
+      <thead id="thead">
+        </thead>
+      <tbody id="tbody" class="divide-y divide-gray-200">
+        </tbody>
+    </table>
+  </div>
+
+  <div class="p-4 border-t border-gray-200 bg-gray-50">
+    <div class="flex justify-between items-center text-sm text-gray-600">
+      <span id="tableInfo">Carregando...</span>
+      <span id="lastUpdate">Última atualização: --</span>
+    </div>
+  </div>
+</div>
+
+<div id="saidaModal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 hidden">
+  <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white/95 backdrop-blur-lg border border-white/30 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-900 to-black">
+        <div class="flex items-center justify-center relative">
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <i class="ri-truck-line text-2xl"></i>
+            Saída de Materiais - Leitura QR Code
+          </h2>
+          <button onclick="closeSaidaModal()" class="absolute right-4 text-white hover:text-gray-200 transition-colors">
+            <i class="ri-close-line text-2xl"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-gray-700">
+              <i class="ri-qr-code-line mr-1"></i>
+              Leitura QR Code
+            </label>
+            <div class="flex gap-2">
+              <input 
+                type="text" 
+                id="qrCodeInput" 
+                placeholder="Escaneie ou digite o código do item..."
+                class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                oninput="handleQrCodeInput()"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-gray-700">
+              <i class="ri-time-line mr-1"></i>
+              Horário de Saída
+            </label>
+            <select 
+              id="horarioSelect" 
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              onchange="updateTabelaSaida()"
+            >
+              <option value="">Selecione um horário...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+          <div class="p-4 bg-gray-100 border-b border-gray-200">
+            <h3 class="font-semibold text-gray-800 flex items-center gap-2">
+              <i class="ri-table-line text-blue-600"></i>
+              Itens do Horário Selecionado
+            </h3>
+          </div>
+          
+          <div class="overflow-x-auto max-h-96">
+            <table id="tabelaSaida" class="w-full text-sm">
+              <thead class="bg-gray-100 sticky top-0">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-gray-700 border-r border-gray-200">Código</th>
+                  <th class="px-4 py-3 text-left font-semibold text-gray-700 border-r border-gray-200">Descrição</th>
+                  <th class="px-4 py-3 text-center font-semibold text-gray-700 border-r border-gray-200">QTD Esperada</th>
+                  <th class="px-4 py-3 text-center font-semibold text-gray-700 border-r border-gray-200">QTD Lida</th>
+                  <th class="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaSaidaBody">
+                <tr>
+                  <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                    <i class="ri-information-line text-2xl mb-2 block"></i>
+                    Selecione um horário para visualizar os itens
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+          <button 
+            onclick="closeSaidaModal()" 
+            class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <i class="ri-close-line mr-1"></i>
+            Cancelar
+          </button>
+          <button 
+            onclick="salvarSaida()" 
+            id="salvarBtn"
+            class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled
+          >
+            <i class="ri-save-line mr-1"></i>
+            Salvar Saída
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// VARIÁVEIS GLOBAIS
+// ============================================================================
+let qrCodeTimer = null;
+let globalSaidasRegistradas = {};
+let itensSaida = {};
+let isLoadingData = false;
+
+// ============================================================================
+// CONFIGURAÇÕES E CONSTANTES
+// ============================================================================
+const FIXED_ITEMS = [
+  ["16700K1S 9011 M1","BOMBA K1SG"],
+  ["16700K68 9013 M1","BOMBA K68"],
+  ["16700K68 B011 M1","BOMBA K68L"],
+  ["16700K62 BC10 M1","BOMBA K62"],
+  ["16700K1H B511 M1","BOMBA K1HG_E100"],
+  ["16700K1H B611 M1","BOMBA K1HG_E22"],
+  ["16700KVS J016 M1","BOMBA KVSP"],
+  ["16700K2K B030 M1","BOMBA K2K"],
+  ["16700K3H B011 M1","BOMBA K3H"],
+  ["16700K99 A011 M1","BOMBA K99"],
+  ["16700K3W A010 M1","BOMBA K3W"],
+  ["16700K1Z B310 M1","BOMBA K1ZR"],
+  ["16700K2G 9111 M1","BOMBA K2GF E100"],
+  ["16700K2G 9010 M1","BOMBA K2GF E22"],
+  ["31120KVS K010 M1","ESTATOR KVST"],
+  ["31120K68 9010 M1", "ESTATOR K68"],
+  ["31120K1S 9011 M1", "ESTATOR K1SG"],
+  ["31300K0W NA11 M1", "GERADOR K0W"],
+  ["31300K1Z T110 M1", "GERADOR K1Z"],
+  ["31300K1Z N410 M1", "GERADOR K1ZR"],
+  ["31300K1J DB11 M1", "GERADOR K1J"],
+  ["3120AK1S 9000", "MOTOR K1SG"],
+  ["3120AKVS J003", "MOTOR KVSP"],
+  ["3120AKVS K002", "MOTOR KVST"],
+  ["3120AK68 7001", "MOTOR K68A"],
+  ["3120AK68 B000", "MOTOR K68L"],
+  ["3120AKPE 9003", "MOTOR KPE"],
+  ["3120AK2K B002", "MOTOR K2K"],
+  ["3120AK99 A001", "MOTOR K99"],
+  ["3120AK3H B000", "MOTOR K3H"],
+  ["3120AK3W B002", "MOTOR K3W"],
+  ["3120AKVS K003", "MOTOR KVST"],
+  ["3120AK68 7002", "MOTOR K68A"],
+  ["31110KRE H810 M1","ROTOR KREV"],
+];
+
+const HORARIOS_PADRAO = ["08:30","09:00","09:30","10:00","10:30","13:00","13:30","14:00","15:00","15:30","18:00","18:30","20:30","21:00","23:00","23:30","00:00"];
+
+const thead = document.getElementById('thead');
+const tbody = document.getElementById('tbody');
+
+// ============================================================================
+// NOVA FUNÇÃO: ATUALIZAR APENAS CORES (SEM RECONSTRUIR TABELA)
+// ============================================================================
+async function updateColorsOnly() {
+    console.log('🎨 Atualizando apenas as cores da tabela...');
+    
+    try {
+        // Buscar saídas atualizadas do backend
+        const response = await fetch('/api/saidas-registradas');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('📊 Saídas atualizadas recebidas:', data);
+        
+        // Atualizar cache global
+        globalSaidasRegistradas = data;
+        localStorage.setItem("saidasRegistradas", JSON.stringify(data));
+        
+        // Obter horários da tabela atual
+        const headerCells = document.querySelectorAll('#thead th');
+        const horarios = [];
+        headerCells.forEach(cell => {
+            const text = cell.textContent.trim();
+            if (text.match(/^\d{2}:\d{2}$/)) {
+                horarios.push(text);
+            }
+        });
+        
+        // Aplicar cores na tabela existente
+        applySaidasToTable(data, horarios);
+        
+        console.log('✅ Cores atualizadas com sucesso!');
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Erro ao atualizar cores:', error);
+        return false;
+    }
+}
+
+// ============================================================================
+// FUNÇÕES DE DEBUG
+// ============================================================================
+function debugColors() {
+  console.log('🐛 INICIANDO DEBUG DE CORES...');
+  
+  // 1. Verificar se a tabela existe
+  const table = document.getElementById('kanbanTable');
+  if (!table) {
+    console.error('❌ Tabela não encontrada!');
+    alert('Erro: Tabela não encontrada!');
+    return;
+  }
+  
+  // 2. Verificar dados globais
+  console.log('📊 Dados globais:', {
+    globalSaidasRegistradas,
+    localStorage: localStorage.getItem("saidasRegistradas")
+  });
+  
+  // 3. Forçar recarregamento completo
+  console.log('🔄 Forçando recarregamento...');
+  forceReloadWithColors();
+  
+  // 4. Verificar endpoint
+  testEndpoint();
+}
+
+async function testEndpoint() {
+  console.log('🔍 Testando endpoint /api/saidas-registradas...');
+  try {
+    const response = await fetch('/api/saidas-registradas');
+    const data = await response.json();
+    console.log('✅ Endpoint funcionando:', data);
+    
+    if (Object.keys(data).length === 0) {
+      console.warn('⚠️ Endpoint retornou dados vazios!');
+      alert('Aviso: Não há saídas registradas no banco de dados.');
+    }
+  } catch (error) {
+    console.error('❌ Erro no endpoint:', error);
+    alert('Erro: Não foi possível conectar ao servidor.');
+  }
+}
+
+async function forceReloadWithColors() {
+  console.log('💪 FORÇANDO RECARREGAMENTO COM CORES...');
+  
+  try {
+    // 1. Limpar cache
+    globalSaidasRegistradas = {};
+    localStorage.removeItem("saidasRegistradas");
+    
+    // 2. Recarregar dados
+    await loadDataFromAPI();
+    
+    console.log('✅ Recarregamento forçado concluído!');
+  } catch (error) {
+    console.error('❌ Erro no recarregamento forçado:', error);
+  }
+}
+
+// ============================================================================
+// FUNÇÕES UTILITÁRIAS
+// ============================================================================
+function formatNumber(num) {
+  if (!num || num === 0) return '';
+  return num.toLocaleString('pt-BR');
+}
+
+function normalizeTime(timeStr) {
+  if (timeStr && timeStr.includes(':')) {
+    const parts = timeStr.split(':');
+    const hour = String(parts[0]).padStart(2, '0');
+    const minute = parts[1];
+    return `${hour}:${minute}`;
+  }
+  return timeStr;
+}
+
+function sortTimeColumns(horarios) {
+  return horarios.sort((a, b) => {
+    const timePattern = /(\d{2}):(\d{2})/;
+    const matchA = timePattern.exec(a);
+    const matchB = timePattern.exec(b);
+    
+    if (!matchA || !matchB) return 0;
+    
+    let hourA = parseInt(matchA[1]);
+    let hourB = parseInt(matchB[1]);
+    const minA = parseInt(matchA[2]);
+    const minB = parseInt(matchB[2]);
+    
+    if (hourA === 0) hourA = 24;
+    if (hourB === 0) hourB = 24;
+    
+    if (hourA !== hourB) {
+      return hourA - hourB;
+    }
+    return minA - minB;
+  });
+}
+
+// ============================================================================
+// FUNÇÕES DE CONSTRUÇÃO DA TABELA
+// ============================================================================
+function buildHeader(horarios) {
+  console.log('🏗️ Construindo cabeçalho da tabela...');
+  thead.innerHTML = '';
+  const tr = document.createElement('tr');
+  
+  const thC = document.createElement("th"); 
+  thC.textContent = "CÓDIGO"; 
+  thC.className = "code-col border-r border-gray-300";
+  
+  const thD = document.createElement("th"); 
+  thD.textContent = "DESCRIÇÃO"; 
+  thD.className = "desc-col border-r border-gray-300";
+  
+  tr.appendChild(thC); 
+  tr.appendChild(thD);
+  
+  horarios.forEach(h => {
+    const th = document.createElement("th"); 
+    th.textContent = normalizeTime(h); 
+    th.className = "time-col border-r border-gray-300"; 
+    th.id = `header-${normalizeTime(h).replace(':', '-')}`;
+    tr.appendChild(th);
+  });
+  
+  const thTot = document.createElement("th"); 
+  thTot.textContent = "TOTAL"; 
+  thTot.className = "total-col text-center";
+  tr.appendChild(thTot);
+  
+  thead.appendChild(tr);
+}
+
+// FUNÇÃO CORRIGIDA: buildBody() - SEM aplicação automática de amarelo
+function buildBody(horarios, dataByCode = {}) {
+    console.log('🏗️ Construindo corpo da tabela...');
+    tbody.innerHTML = "";
+    
+    FIXED_ITEMS.forEach(([code, desc]) => {
+        const rowData = dataByCode[code] || {};
+        let soma = 0;
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-gray-50";
+        
+        // código
+        const tdC = document.createElement("td"); 
+        tdC.textContent = code; 
+        tdC.className = "code-col font-medium text-gray-900 border-r border-gray-200"; 
+        tr.appendChild(tdC);
+        
+        // descrição
+        const tdD = document.createElement("td"); 
+        tdD.textContent = desc; 
+        tdD.className = "desc-col border-r border-gray-200"; 
+        tr.appendChild(tdD);
+        
+        // horários
+        horarios.forEach(h => {
+            const qtd = parseFloat(rowData[h] || "") || 0;
+            const td = document.createElement("td");
+            td.className = "time-col border-r border-gray-200";
+            td.setAttribute('data-codigo', code);
+            td.setAttribute('data-horario', h);
+            
+            if (qtd) { 
+                td.textContent = formatNumber(qtd);
+                // CORREÇÃO: Aplicar apenas font-semibold, cor será aplicada depois
+                td.classList.add("font-semibold");
+                soma += qtd; 
+            }
+            tr.appendChild(td);
+        });
+        
+        // Total
+        const tdTot = document.createElement("td"); 
+        tdTot.textContent = soma ? formatNumber(soma) : "";
+        tdTot.className = "total-col font-bold bg-blue-100 text-center";
+        tr.appendChild(tdTot);
+        
+        tbody.appendChild(tr);
+    });
+}
+
+// ============================================================================
+// FUNÇÃO PRINCIPAL DE CARREGAMENTO - CORRIGIDA
+// ============================================================================
+async function loadDataFromAPI() {
+    if (isLoadingData) {
+        console.log('⏳ Carregamento já em andamento...');
+        return;
+    }
+    
+    isLoadingData = true;
+    console.log('🔄 INICIANDO CARREGAMENTO DE DADOS...');
+    
+    try {
+        // 1. Carregar dados da tabela principal
+        console.log('📊 Carregando dados da tabela...');
+        const response = await fetch('/api/dados');
+        const data = await response.json();
+        
+        let horarios = HORARIOS_PADRAO;
+        let dataByCode = {};
+        
+        if (data.length > 0) {
+            const colunas = Object.keys(data[0]);
+            horarios = colunas.filter(col => 
+                col !== 'CODIGO' && col !== 'DESCRICAO' && col !== 'TOTAL' && 
+                col.includes(':')
+            );
+            
+            horarios = sortTimeColumns(horarios);
+            
+            data.forEach(item => {
+                dataByCode[item.CODIGO] = item;
+            });
+        }
+        
+        // 2. Construir tabela (sem cores automáticas)
+        console.log('🏗️ Construindo tabela...');
+        buildHeader(horarios);
+        buildBody(horarios, dataByCode);
+        
+        // 3. Aguardar DOM ser atualizado
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // 4. Aplicar cores baseadas nas saídas registradas
+        console.log('🎨 Aplicando cores...');
+        await updateColorsOnly();
+        
+        // 5. Atualizar informações
+        document.getElementById('tableInfo').textContent = `${FIXED_ITEMS.length} itens • ${horarios.length} horários`;
+        document.getElementById('lastUpdate').textContent = `Última atualização: ${new Date().toLocaleString('pt-BR')}`;
+        
+        console.log('✅ CARREGAMENTO CONCLUÍDO COM SUCESSO!');
+        
+    } catch (error) {
+        console.error('❌ ERRO NO CARREGAMENTO:', error);
+        // Fallback para dados padrão
+        buildHeader(HORARIOS_PADRAO);
+        buildBody(HORARIOS_PADRAO);
+        document.getElementById('tableInfo').textContent = `${FIXED_ITEMS.length} itens • Erro ao carregar`;
+    } finally {
+        isLoadingData = false;
+    }
+}
+
+// ============================================================================
+// FUNÇÃO DE APLICAÇÃO DE CORES - MANTIDA IGUAL
+// ============================================================================
+function applySaidasToTable(saidasData, horarios) {
+  console.log('🎨 APLICANDO CORES NA TABELA...', saidasData);
+  
+  const rows = document.querySelectorAll("#tbody tr");
+  const headerCells = document.querySelectorAll("#thead th");
+
+  if (rows.length === 0) {
+    console.error('❌ Nenhuma linha encontrada na tabela para aplicar cores!');
+    return;
+  }
+
+  // Mapear índices dos horários
+  const horarioIndexes = {};
+  headerCells.forEach((cell, index) => {
+    const text = cell.textContent.trim();
+    if (horarios.includes(text)) {
+      horarioIndexes[text] = index;
+    }
+  });
+
+  let coresAplicadasCount = 0;
+  let cellsConsideredForColoringCount = 0;
+
+  // Processar cada linha
+  rows.forEach((row, rowIndex) => {
+    const cells = row.querySelectorAll("td");
+    if (cells.length === 0) return;
+    
+    const codigo = cells[0].textContent.trim();
+    
+    // Processar cada horário
+    horarios.forEach(horario => {
+      const horarioIndex = horarioIndexes[horario];
+      if (horarioIndex && cells[horarioIndex]) {
+        const cell = cells[horarioIndex];
+        const qtdEsperadaText = cell.textContent.trim();
+        const qtdEsperada = qtdEsperadaText ? parseInt(qtdEsperadaText.replace(/\./g, "")) : 0;
+        
+        cellsConsideredForColoringCount++;
+        
+        // Só processar células que têm quantidade esperada
+        if (qtdEsperada > 0) {
+          // Obter quantidade lida das saídas registradas
+          const qtdSaida = (saidasData[codigo] && saidasData[codigo][horario]) ? saidasData[codigo][horario] : 0;
+
+          console.log(`🎨 Processing ${codigo} - ${horario}: Expected=${qtdEsperada}, Read=${qtdSaida}. Current classes: ${cell.className}`);
+
+          // REMOVER TODAS as classes de cor existentes
+          cell.classList.remove("bg-yellow-100", "bg-green-100", "bg-orange-100");
+          console.log(`🎨 After removal: ${cell.className}`);
+          
+          // Aplicar cor baseada no status
+          if (qtdSaida >= qtdEsperada) {
+            // Verde: Registrado (quantidade lida >= esperada)
+            cell.classList.add("bg-green-100");
+            console.log(`✅ ${codigo} ${horario}: Green (${qtdSaida}/${qtdEsperada})`);
+          } else if (qtdSaida > 0) {
+            // Laranja: Parcial (quantidade lida > 0 mas < esperada)
+            cell.classList.add("bg-orange-100");
+            console.log(`🟠 ${codigo} ${horario}: Orange (${qtdSaida}/${qtdEsperada})`);
+          } else {
+            // Amarelo: Não Registrado (quantidade lida = 0)
+            cell.classList.add("bg-yellow-100");
+            console.log(`🟡 ${codigo} ${horario}: Yellow (${qtdSaida}/${qtdEsperada})`);
+          }
+          coresAplicadasCount++;
+          
+          // Garantir que a classe font-semibold permaneça
+          if (!cell.classList.contains("font-semibold")) {
+            cell.classList.add("font-semibold");
+          }
+          console.log(`🎨 After addition: ${cell.className}`);
+        }
+      }
+    });
+  });
+
+  console.log(`🎨 RESULTADO FINAL: ${coresAplicadasCount} cores aplicadas de ${cellsConsideredForColoringCount} células consideradas`);
+  
+  // Atualizar cores dos cabeçalhos
+  horarios.forEach(horario => {
+    updateHorarioHeaderColor(horario);
+  });
+  
+  // Verificação final
+  setTimeout(() => {
+    const finalColoredCells = document.querySelectorAll('.bg-green-100, .bg-orange-100, .bg-yellow-100');
+    console.log(`🔍 VERIFICAÇÃO FINAL (após breve atraso): ${finalColoredCells.length} células coloridas encontradas`);
+  }, 100);
+}
+
+// ============================================================================
+// FUNÇÕES DE ATUALIZAÇÃO
+// ============================================================================
+async function refreshData() {
+  console.log('🔄 ATUALIZANDO DADOS...');
+  
+  const refreshIcon = document.getElementById('refreshIcon');
+  refreshIcon.classList.add('animate-spin');
+  
+  try {
+    await loadDataFromAPI();
+    console.log('✅ Dados atualizados com sucesso!');
+  } catch (error) {
+    console.error('❌ Erro ao atualizar dados:', error);
+  } finally {
+    setTimeout(() => {
+      refreshIcon.classList.remove('animate-spin');
+    }, 1000);
+  }
+}
+
+// ============================================================================
+// INICIALIZAÇÃO
+// ============================================================================
+document.addEventListener("DOMContentLoaded", async function() {
+  console.log('🚀 PÁGINA CARREGADA - INICIANDO SISTEMA...');
+  
+  // Aguardar um pouco para garantir que tudo está carregado
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  await loadDataFromAPI();
+});
+
+// ============================================================================
+// FUNÇÕES DO MODAL SAÍDA KANBAN
+// ============================================================================
+
+function handleQrCodeInput() {
+  if (qrCodeTimer) {
+    clearTimeout(qrCodeTimer);
+  }
+  
+  qrCodeTimer = setTimeout(() => {
+    const qrInput = document.getElementById("qrCodeInput");
+    if (qrInput.value.trim()) {
+      processQrCode();
+    }
+  }, 2000);
+}
+
+function parseQrData(raw) {
+  raw = raw.trim();
+  if (/^[sS]/.test(raw)) raw = raw.slice(1);
+  const [codePart, rest] = raw.split(/\s{2,}/);
+  const codigo = codePart.trim().toUpperCase();
+  let quantidade = 1;
+  const m = rest && rest.match(/(\d{1,}),(\d{3})/);
+  if (m) quantidade = parseInt(m[1], 10);
+  return { codigo, quantidade };
+}
+
+function processQrCode() {
+  const qrInput = document.getElementById("qrCodeInput");
+  const { codigo, quantidade } = parseQrData(qrInput.value);
+  const horarioSelecionado = document.getElementById('horarioSelect').value;
+  
+  // Clear and focus at the very beginning to always ensure it's ready for the next scan
+  qrInput.value = '';
+  qrInput.focus();
+
+  const horariosPendentes = getHorariosPendentes();
+  
+  if (horariosPendentes.length > 0 && !horariosPendentes.includes(horarioSelecionado)) {
+    showMessage(`Existem horários pendentes: ${horariosPendentes.join(', ')}. Finalize-os primeiro!`, 'warning');
+    return;
+  }
+  
+  if (!codigo) {
+    showMessage('Digite ou escaneie um código primeiro', 'warning');
+    return;
+  }
+  
+  if (!horarioSelecionado) {
+    showMessage('Selecione um horário primeiro', 'warning');
+    return;
+  }
+  
+  const itemExiste = FIXED_ITEMS.find(item => item[0] === codigo);
+  if (!itemExiste) {
+    showMessage(`Código "${codigo}" não encontrado na lista de itens`, 'danger');
+    return;
+  }
+
+  let qtdEsperada = 0;
+  const rows = document.querySelectorAll('#tbody tr');
+  const headerCells = document.querySelectorAll('#thead th');
+  let horarioIndex = -1;
+
+  headerCells.forEach((cell, index) => {
+    if (cell.textContent.trim() === horarioSelecionado) {
+      horarioIndex = index;
+    }
+  });
+
+  if (horarioIndex === -1) {
+    showMessage('Erro interno: Horário selecionado não encontrado na tabela principal.', 'danger');
+    return;
+  }
+
+  for (const row of rows) {
+    const cells = row.querySelectorAll('td');
+    if (cells.length > 0 && cells[0].textContent.trim() === codigo) {
+      const qtdText = cells[horarioIndex].textContent.trim();
+      if (qtdText) {
+        qtdEsperada = parseInt(qtdText.replace(/\./g, ''));
+      }
+      break; 
+    }
+  }
+
+  if (qtdEsperada === 0) {
+    showMessage(`O item "${codigo}" não tem quantidade esperada para o horário ${horarioSelecionado}.`, 'warning');
+    return;
+  }
+  
+  const qtdAtual = itensSaida[codigo] || 0; 
+  const qtdRegistrada = (globalSaidasRegistradas[codigo] && globalSaidasRegistradas[codigo][horarioSelecionado]) || 0;
+  const totalJaLido = qtdAtual + qtdRegistrada;
+
+  const novaQuantidade = totalJaLido + quantidade; 
+  
+  if (novaQuantidade > qtdEsperada) {
+    showMessage(`Erro: Tentativa de ler ${quantidade} unidades excederia a quantidade esperada. Esperado: ${qtdEsperada}, Já lido: ${totalJaLido}, Tentando adicionar: ${quantidade}`, 'danger');
+    return;
+  }
+  
+  if (!itensSaida[codigo]) {
+    itensSaida[codigo] = 0;
+  }
+  itensSaida[codigo] += quantidade;
+  
+  if (totalJaLido + quantidade === qtdEsperada) {
+    showMessage(`Item "${codigo}" lido corretamente (${totalJaLido + quantidade}/${qtdEsperada})`, 'success');
+  } else {
+    showMessage(`Item "${codigo}" lido (${totalJaLido + quantidade}/${qtdEsperada})`, 'info');
+  }
+  
+  updateTabelaSaida();
+
+  // NOVO: Verificar se o horário atual está completo e salvar automaticamente
+  if (isCurrentHorarioSessionComplete(horarioSelecionado)) {
+    // Pequeno delay para o usuário ver a mensagem de "completo" antes de salvar
+    setTimeout(() => {
+      salvarSaida();
+    }, 500); 
+  }
+}
+
+function openSaidaModal() {
+  document.getElementById('saidaModal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  
+  populateHorarios(); // Popula o select com horários pendentes
+  
+  const horarioSelect = document.getElementById('horarioSelect');
+  // NOVO: Selecionar o primeiro horário pendente automaticamente
+  if (horarioSelect.options.length > 1) { // Verifica se há mais de uma opção (além da default "Selecione...")
+    horarioSelect.value = horarioSelect.options[1].value; // Seleciona o primeiro horário pendente
+    updateTabelaSaida(); // Atualiza a tabela para exibir os itens desse horário
+  }
+  
+  document.getElementById('qrCodeInput').focus();
+}
+
+function closeSaidaModal() {
+  document.getElementById('saidaModal').classList.add('hidden');
+  document.body.style.overflow = 'auto';
+  
+  document.getElementById('qrCodeInput').value = '';
+  document.getElementById('horarioSelect').value = '';
+  itensSaida = {};
+  updateTabelaSaida();
+  updateSalvarButton();
+  
+  // CORREÇÃO: Usar updateColorsOnly() em vez de loadDataFromAPI()
+  updateColorsOnly();
+}
+
+// FUNÇÃO ATUALIZADA para verificar se um horário está COMPLETAMENTE concluído (registrado)
+function isHorarioCompleto(horario) {
+  const rows = document.querySelectorAll("#tbody tr");
+  const headerCells = document.querySelectorAll("#thead th");
+
+  let horarioIndex = -1;
+  headerCells.forEach((cell, index) => {
+    if (cell.textContent.trim() === horario) {
+      horarioIndex = index;
+    }
+  });
+
+  if (horarioIndex === -1) {
+    return false; // Horário não encontrado na tabela
+  }
+
+  let temItensEsperados = false;
+  let todosCompletos = true;
+
+  for (const row of rows) {
+    const cells = row.querySelectorAll("td");
+    if (cells.length > horarioIndex) {
+      const codigo = cells[0].textContent.trim();
+      const qtdText = cells[horarioIndex].textContent.trim();
+
+      if (qtdText && qtdText !== "" && parseInt(qtdText.replace(/\./g, "")) > 0) {
+        temItensEsperados = true; // Existe pelo menos um item esperado para este horário
+        const qtdEsperada = parseInt(qtdText.replace(/\./g, ""));
+        const qtdLida = (globalSaidasRegistradas[codigo] && globalSaidasRegistradas[codigo][horario]) || 0;
+
+        if (qtdLida < qtdEsperada) {
+          todosCompletos = false;
+          break; // Um item está incompleto, não precisamos verificar mais
+        }
+      }
+    }
+  }
+  // Um horário é considerado completo se ele tinha itens esperados E todos eles foram lidos
+  // OU se ele não tinha itens esperados (neste caso, é "completo" por não ter o que fazer)
+  return !temItensEsperados || todosCompletos;
+}
+
+// NOVO: Função para verificar se um horário está completo considerando a sessão atual (itensSaida)
+function isCurrentHorarioSessionComplete(horario) {
+  const rows = document.querySelectorAll("#tbody tr");
+  const headerCells = document.querySelectorAll("#thead th");
+
+  let horarioIndex = -1;
+  headerCells.forEach((cell, index) => {
+    if (cell.textContent.trim() === horario) {
+      horarioIndex = index;
+    }
+  });
+
+  if (horarioIndex === -1) {
+    return false;
+  }
+
+  let allItemsExpectedAreComplete = true; 
+  let foundExpectedItems = false; 
+
+  for (const row of rows) {
+    const cells = row.querySelectorAll("td");
+    if (cells.length > horarioIndex) {
+      const codigo = cells[0].textContent.trim();
+      const qtdText = cells[horarioIndex].textContent.trim();
+
+      if (qtdText && qtdText !== "" && parseInt(qtdText.replace(/\./g, "")) > 0) {
+        foundExpectedItems = true; 
+        const qtdEsperada = parseInt(qtdText.replace(/\./g, ""));
+        const qtdRegistrada = (globalSaidasRegistradas[codigo] && globalSaidasRegistradas[codigo][horario]) || 0;
+        const qtdLidaSessao = itensSaida[codigo] || 0; 
+        const totalLidoAteAgora = qtdRegistrada + qtdLidaSessao;
+
+        if (totalLidoAteAgora < qtdEsperada) {
+          allItemsExpectedAreComplete = false; 
+          break; 
+        }
+      }
+    }
+  }
+
+  // O horário da sessão é completo se tinha itens esperados E todos eles foram lidos (totalmente)
+  return allItemsExpectedAreComplete && foundExpectedItems;
+}
+
+
+function updateHorarioHeaderColor(horario) {
+  const headerElement = document.getElementById(`header-${horario.replace(':', '-')}`);
+  
+  if (headerElement) {
+    // Remove todas as classes de cor existentes
+    headerElement.classList.remove('bg-green-100', 'text-green-800');
+    
+    if (isHorarioCompleto(horario)) {
+      headerElement.classList.add('bg-green-100', 'text-green-800');
+    }
+    // Não adicionamos mais bg-yellow-100 aqui, pois essa cor é aplicada no applySaidasToTable
+  }
+}
+
+function populateHorarios() {
+  const select = document.getElementById('horarioSelect');
+  const selectedValue = select.value; // Guarda o valor atualmente selecionado
+  select.innerHTML = '<option value="">Selecione um horário...</option>';
+  
+  const headerCells = document.querySelectorAll('#thead th');
+  const horarios = [];
+  
+  headerCells.forEach(cell => {
+    const text = cell.textContent.trim();
+    if (text.match(/^\d{2}:\d{2}$/)) {
+      horarios.push(text);
+    }
+  });
+  
+  horarios.forEach(horario => {
+    if (!isHorarioCompleto(horario)) { // Só adiciona horários que NÃO estão completos
+      const option = document.createElement("option");
+      option.value = horario;
+      option.textContent = horario;
+      select.appendChild(option);
+    }
+  });
+
+  // Tenta restaurar a seleção, se ainda for um horário pendente
+  if (selectedValue && !isHorarioCompleto(selectedValue)) {
+    select.value = selectedValue;
+  } else if (select.options.length > 1) {
+    // Se o anterior não é mais pendente ou não havia seleção, seleciona o primeiro disponível
+    select.value = select.options[1].value;
+  }
+}
+
+function updateTabelaSaida() {
+  const horarioSelecionado = document.getElementById('horarioSelect').value;
+  const tbody = document.getElementById('tabelaSaidaBody');
+  
+  if (!horarioSelecionado) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+          <i class="ri-information-line text-2xl mb-2 block"></i>
+          Selecione um horário para visualizar os itens
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  const itensHorario = [];
+  const rows = document.querySelectorAll('#tbody tr');
+  const headerCells = document.querySelectorAll('#thead th');
+  
+  let horarioIndex = -1;
+  headerCells.forEach((cell, index) => {
+    if (cell.textContent.trim() === horarioSelecionado) {
+      horarioIndex = index;
+    }
+  });
+  
+  if (horarioIndex === -1) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+          <i class="ri-error-warning-line text-2xl mb-2 block"></i>
+          Horário não encontrado na tabela
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  rows.forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length > horarioIndex) {
+      const codigo = cells[0].textContent.trim();
+      const descricao = cells[1].textContent.trim();
+      const qtdText = cells[horarioIndex].textContent.trim();
+      
+      if (qtdText && qtdText !== '' && parseInt(qtdText.replace(/\./g, '')) > 0) {
+        const qtdEsperada = parseInt(qtdText.replace(/\./g, ''));
+        const qtdLidaSessao = itensSaida[codigo] || 0;
+        const qtdRegistrada = (globalSaidasRegistradas[codigo] && globalSaidasRegistradas[codigo][horarioSelecionado]) || 0;
+        const qtdLidaTotal = qtdRegistrada + qtdLidaSessao;
+        
+        // Adiciona à lista apenas se ainda não estiver completo (lida < esperada)
+        // Isso evita que itens já completos apareçam na lista de "pendentes" no modal
+        if (qtdLidaTotal < qtdEsperada) {
+          itensHorario.push({
+            codigo,
+            descricao,
+            qtdEsperada: qtdEsperada,
+            qtdLida: qtdLidaTotal
+          });
+        }
+      }
+    }
+  });
+  
+  if (itensHorario.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+          <i class="ri-inbox-line text-2xl mb-2 block"></i>
+          Nenhum item pendente para este horário
+        </td>
+      </tr>
+    `;
+    // Se não há itens pendentes, o botão Salvar não deve estar ativo,
+    // a menos que haja itens lidos na sessão atual que ainda não foram salvos.
+    // A função updateSalvarButton já lida com isso.
+  }
+  
+  tbody.innerHTML = '';
+  itensHorario.forEach(item => {
+    const status = getStatusItem(item.qtdEsperada, item.qtdLida);
+    
+    const row = document.createElement('tr');
+    row.className = 'hover:bg-gray-50 border-b border-gray-100';
+    row.innerHTML = `
+      <td class="px-4 py-3 font-medium text-gray-900 border-r border-gray-200">${item.codigo}</td>
+      <td class="px-4 py-3 text-gray-700 border-r border-gray-200">${item.descricao}</td>
+      <td class="px-4 py-3 text-center font-semibold border-r border-gray-200">${formatNumber(item.qtdEsperada)}</td>
+      <td class="px-4 py-3 text-center font-semibold border-r border-gray-200 ${item.qtdLida > 0 ? 'bg-blue-50' : ''}">${formatNumber(item.qtdLida)}</td>
+      <td class="px-4 py-3 text-center">
+        <span class="px-2 py-1 rounded-full text-xs font-semibold ${status.class}">
+          <i class="${status.icon} mr-1"></i>
+          ${status.text}
+        </span>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+  
+  updateSalvarButton();
+}
+
+function getStatusItem(qtdEsperada, qtdLida) {
+  if (qtdLida === 0) {
+    return {
+      class: 'bg-gray-100 text-gray-600',
+      icon: 'ri-minus-line',
+      text: 'Pendente'
+    };
+  } else if (qtdLida === qtdEsperada) {
+    return {
+      class: 'bg-green-100 text-green-800',
+      icon: 'ri-check-line',
+      text: 'Correto'
+    };
+  } else {
+    return {
+      class: 'bg-red-100 text-red-800',
+      icon: 'ri-error-warning-line',
+      text: 'Divergente'
+    };
+  }
+}
+
+function updateSalvarButton() {
+  const salvarBtn = document.getElementById('salvarBtn');
+  // O botão salvar só deve ser ativado se houver itens lidos na sessão atual (itensSaida)
+  const temItensLidosNaSessao = Object.keys(itensSaida).length > 0 && Object.values(itensSaida).some(qtd => qtd > 0);
+  
+  salvarBtn.disabled = !temItensLidosNaSessao;
+}
+
+// FUNÇÃO CORRIGIDA: salvarSaida() - Usar updateColorsOnly()
+async function salvarSaida() {
+    const horarioSelecionado = document.getElementById("horarioSelect").value;
+    
+    if (!horarioSelecionado) {
+        showMessage("Selecione um horário primeiro", "warning");
+        return;
+    }
+    
+    // Apenas itens com quantidade > 0 na sessão atual
+    const itensParaSalvar = Object.entries(itensSaida).filter(([codigo, qtd]) => qtd > 0);
+    
+    if (itensParaSalvar.length === 0) {
+        showMessage("Nenhum item foi lido para salvar", "warning");
+        return;
+    }
+    
+    const salvarBtn = document.getElementById("salvarBtn");
+    salvarBtn.disabled = true;
+    salvarBtn.innerHTML = '<i class="ri-loader-line animate-spin mr-1"></i>Salvando...';
+    
+    try {
+        const response = await fetch("/api/saida-materiais", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                horario: horarioSelecionado,
+                itens: itensParaSalvar
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message, "success");
+            
+            // NOVA ABORDAGEM: Atualizar apenas as cores, não reconstruir a tabela
+            const updateSuccess = await updateColorsOnly();
+            
+            if (!updateSuccess) {
+                console.warn('⚠️ Fallback: Recarregando dados completos...');
+                await loadDataFromAPI();
+            }
+            
+            // Resetar itens da sessão atual
+            itensSaida = {}; 
+            
+            // Re-popular e selecionar o próximo horário
+            populateHorarios();
+            
+            const horarioSelect = document.getElementById('horarioSelect');
+            if (horarioSelect.options.length > 1) {
+                updateTabelaSaida();
+                showMessage(`Horário ${horarioSelecionado} concluído. Próximo horário: ${horarioSelect.value}`, 'info');
+            } else {
+                showMessage(`Todos os horários foram concluídos!`, 'success');
+                setTimeout(() => {
+                    closeSaidaModal();
+                }, 1500);
+            }
+            
+            document.getElementById('qrCodeInput').focus();
+
+        } else {
+            showMessage(data.error || "Erro ao salvar saída", "danger");
+        }
+    } catch (error) {
+        console.error("Erro ao salvar saída:", error);
+        showMessage("Erro de comunicação com o servidor", "danger");
+    } finally {
+        salvarBtn.disabled = false;
+        salvarBtn.innerHTML = '<i class="ri-save-line mr-1"></i>Salvar Saída';
+        updateSalvarButton();
+    }
+}
+
+function showMessage(message, type = 'info') {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-md transition-all duration-300 transform translate-x-full`;
+  
+  const typeClasses = {
+    success: 'bg-green-100 text-green-800 border border-green-200',
+    danger: 'bg-red-100 text-red-800 border border-red-200',
+    warning: 'bg-yellow-100 text-yellow-800 border border-yellow-200',
+    info: 'bg-blue-100 text-blue-800 border border-blue-200'
+  };
+  
+  const typeIcons = {
+    success: 'ri-check-line',
+    danger: 'ri-error-warning-line',
+    warning: 'ri-alert-line',
+    info: 'ri-information-line'
+  };
+  
+  messageDiv.className += ` ${typeClasses[type] || typeClasses.info}`;
+  messageDiv.innerHTML = `
+    <div class="flex items-start gap-2">
+      <i class="${typeIcons[type] || typeIcons.info} text-lg mt-0.5"></i>
+      <span class="flex-1">${message}</span>
+      <button onclick="this.parentElement.parentElement.remove()" class="text-current opacity-70 hover:opacity-100">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+  `;
+  
+  document.body.appendChild(messageDiv);
+  
+  setTimeout(() => {
+    messageDiv.classList.remove('translate-x-full');
+  }, 100);
+  
+  setTimeout(() => {
+    messageDiv.classList.add('translate-x-full');
+    setTimeout(() => {
+      if (messageDiv.parentElement) {
+        messageDiv.remove();
+      }
+    }, 300);
+  }, 5000);
+}
+
+function getHorariosPendentes() {
+  const headerCells = document.querySelectorAll("#thead th");
+  const horariosPendentes = [];
+  
+  headerCells.forEach(cell => {
+    const horario = cell.textContent.trim();
+    if (horario.match(/^\d{2}:\d{2}$/)) {
+      if (!isHorarioCompleto(horario)) {
+        horariosPendentes.push(horario);
+      }
+    }
+  });
+  
+  return horariosPendentes;
+}
+</script>
+{% endblock %}
+

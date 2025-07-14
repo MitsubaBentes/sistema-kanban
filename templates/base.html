@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kanban Diário – Expedição</title>
+
+  <!-- ===== FONTE & ÍCONES ===== -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <!-- ===== TAILWIND ===== -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              light: '#6b7280',
+              DEFAULT: '#374151',
+              dark: '#1f2937',
+            },
+            accent: {
+              light: '#9ca3af',
+              DEFAULT: '#6b7280',
+              dark: '#4b5563',
+            },
+            surface: {
+              light: '#f9fafb',
+              DEFAULT: '#ffffff',
+              dark: '#111827',
+            },
+          },
+        }
+      }
+    };
+  </script>
+
+  <!-- ===== SheetJS: Leitura Excel ===== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-nyBfez3xGfJ2txF7Pqz0o1P9d5JBgXESwXAgQp4TXPTvgzy+xkIQx2B9uX1vQe84wnZV4xscDd3V85N1kUUDqg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <!-- ===== ESTILOS EXTRAS ===== -->
+  <style>
+    /* ---------- Fundo degradê + partículas ---------- */
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #111827 0%, #374151 50%, #6b7280 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .particles { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+    .particle {
+      position: absolute; width: 3px; height: 3px; background: rgba(255,255,255,.15);
+      border-radius: 50%; animation: float 15s linear infinite;
+    }
+    @keyframes float {
+      0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10%,90% { opacity: 1; }
+      100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* ---------- Cabeçalho de vidro ---------- */
+    .main-header {
+      background: rgba(249,250,251,.95);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,.3);
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      position: sticky; top: 0; z-index: 1000;
+      padding: .75rem 2rem;
+    }
+
+    /* ---------- Estilo para data ---------- */
+    .date-display {
+      background: linear-gradient(135deg, #374151, #6b7280);
+      color: white;
+      /* botão mais fino ↓ */
+      padding: 0.4rem 0.9rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;              /* espaço menor entre ícone e texto */
+      transition: all 0.3s ease;
+    }
+
+    .date-display:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+
+    .date-icon { font-size: 1.2rem; opacity: 0.9; }
+
+    /* ---------- Tabela responsiva ---------- */
+    .table-container { max-height: calc(100vh - 200px); overflow: auto; }
+    .kanban-table { font-size: 0.75rem; min-width: 100%; }
+    .kanban-table th,
+    .kanban-table td { padding: 0.5rem 0.75rem; white-space: nowrap; }
+    .kanban-table th {
+      position: sticky; top: 0; background: #f9fafb; z-index: 10; font-weight: 600;
+    }
+    .code-col { min-width: 140px; max-width: 140px; }
+    .desc-col { min-width: 180px; max-width: 200px; }
+    .time-col { min-width: 60px;  max-width: 70px;  text-align: center; }
+    .fm-col   { min-width: 80px;  max-width: 80px; }
+    .total-col{ min-width: 70px;  max-width: 70px; }
+
+    /* animações reutilizadas */
+    @keyframes fadeInUp { from{opacity:0;transform:translateY(30px);} to{opacity:1;transform:none;} }
+    .fade-in-up { animation: fadeInUp .8s ease-out forwards; }
+
+    /* Responsividade para data */
+    @media (max-width: 768px) {
+      .date-display { padding: 0.35rem 0.8rem; font-size: 0.9rem; }
+      .date-icon { font-size: 1rem; }
+    }
+
+    /* ---------- NOVAS CORES PARA STATUS ---------- */
+    .bg-orange-100 {
+      background-color: rgba(255, 237, 213, 1);
+    }
+    .bg-green-100 {
+      background-color: rgba(209, 250, 229, 1);
+    }
+    .bg-yellow-100 {
+      background-color: rgba(254, 249, 195, 1);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- === Partículas === -->
+  <div class="particles" id="particles"></div>
+
+  <!-- === Cabeçalho === -->
+  <header class="main-header fade-in-up">
+    <!-- grid garante o título centralizado -->
+    <div class="grid grid-cols-3 items-center max-w-7xl mx-auto gap-4">
+      <!-- Logo -->
+      <div class="flex items-center">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo da Empresa" class="h-12 w-auto" />
+      </div>
+
+      <!-- Título -->
+      <h1 class="col-span-1 text-center text-primary-dark text-3xl md:text-3xl font-bold whitespace-nowrap">
+        KANBAN DIÁRIO EXPEDIÇÃO
+      </h1>
+
+      <!-- Data/Hora -->
+      <div class="flex justify-end">
+        <div class="date-display">
+          <i class="ri-calendar-line date-icon"></i>
+          <!-- centralização vertical e horizontal do bloco de texto -->
+          <div class="flex flex-col items-center text-center">
+            <span id="currentDate" class="text-sm font-bold"></span>
+            <span id="currentTime" class="text-xs opacity-90"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- === Conteúdo === -->
+  <main class="relative z-10 px-4 md:px-6 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ===== SCRIPTS ===== -->
+  <script>
+    /* ------------ Partículas BG ------------ */
+    const particles = document.getElementById('particles');
+    for (let i = 0; i < 120; i++) {
+      const d = document.createElement('div');
+      d.className = 'particle';
+      d.style.left = Math.random()*100 + 'vw';
+      d.style.animationDelay = Math.random()*-20 + 's';
+      d.style.animationDuration = 10 + Math.random()*20 + 's';
+      particles.appendChild(d);
+    }
+
+    /* ------------ Data & Hora ------------ */
+    function updateDateTime() {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const timeStr = now.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      document.getElementById('currentDate').textContent = dateStr;
+      document.getElementById('currentTime').textContent = timeStr;
+    }
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
+  </script>
+
+  <!-- ===================================================================== -->
+
+<!-- === Legenda Kanban — sem fundo ====================================== -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const target = [...document.querySelectorAll('h1,h2,h3,h4,h5')]
+        .find(el => /Tabela\s+Kanban/i.test(el.textContent.trim()));
+      if (!target) return;
+
+      /* wrapper sem cor de fundo */
+      const wrapper = document.createElement('div');
+      wrapper.className = [
+        'flex','flex-wrap','items-center','justify-between','gap-5','mb-6',
+        'rounded-2xl',
+        'backdrop-blur','p-4',
+        'shadow-lg','shadow-black/5','ring-1','ring-black/5'
+      ].join(' ');
+
+      wrapper.appendChild(target.cloneNode(true));
+
+      const legend = document.createElement('ul');
+      legend.className = 'flex flex-wrap items-center gap-4';
+
+      const defs = [
+        {txt:'Não registrado',  color:'yellow'},
+        {txt:'Parcial',         color:'orange'},
+        {txt:'Registrado',      color:'green'}
+      ];
+
+      defs.forEach(({txt,color}) => {
+        const li = document.createElement('li');
+        li.className = [
+          'flex','items-center','gap-2',
+          'text-[0.8rem]','md:text-sm','font-semibold',
+          'rounded-full','px-3','py-1',
+          `bg-${color}-100`,`text-${color}-800`,
+          'ring-1',`ring-${color}-300`,
+          'transition-transform','duration-150',
+          'hover:scale-105','select-none'
+        ].join(' ');
+
+        const dot = document.createElement('span');
+        dot.className = `w-2.5 h-2.5 rounded-full bg-${color}-500`;
+        li.appendChild(dot);
+        li.appendChild(document.createTextNode(txt));
+        legend.appendChild(li);
+      });
+
+      wrapper.appendChild(legend);
+
+      target.replaceWith(wrapper);
+    });
+  </script>
+  <!-- ===================================================================== -->
+
+<!-- === Botões Kanban — gradiente branco ================================= -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const targets = [
+        'importar kanban',
+        'atualizar',
+        'dashboard',
+        'saída kanban',
+        'saida kanban'
+      ];
+      const elems = [...document.querySelectorAll('button, a')];
+      elems.forEach(el => {
+        const txt = el.textContent.trim().toLowerCase();
+        if (targets.some(t => txt.includes(t))) {
+          /* remove estilos conflitantes */
+          el.className = el.className
+            .replace(/bg-[^\s]+/g, '')
+            .replace(/text-white/g, '')
+            .replace(/ring-[^\s]+/g, '')
+            .trim();
+
+          /* adiciona novos estilos */
+          el.classList.add(
+            'bg-gradient-to-b','from-white','to-gray-200',
+            'text-black','font-semibold',
+            'rounded-lg','shadow','shadow-black/10',
+            'px-4','py-2',
+            'transition-all','duration-150',
+            'hover:shadow-lg','hover:scale-105','active:scale-95'
+          );
+        }
+      });
+    });
+  </script>
+  <!-- ===================================================================== -->
+
+</body>
+</html>
